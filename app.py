@@ -46,8 +46,6 @@ def add_personalDetails():
         return jsonify({'invalid sintax ': ' id must be len = 9 '})
     if not id1.isdigit():
         return jsonify({'invalid sintax ': ' Must contain only numbers '})
-    # if not is_valid_phone_number(mobilePhone):
-    #     return jsonify({'invalid sintax ': ' The phone number '})
     ides = corona_stock.execute_query('SELECT id FROM personalDetails WHERE id = ?', (id,))
     if ides:
         return jsonify({"error": " This key exists in the table "})
@@ -61,7 +59,6 @@ def add_personalDetails():
 def add_coronaDetails():
     # Add a new user to the database
     data = request.json
-    # print("data", data)
     id = data['id']
     dateReceVaccin = data['dateReceVaccin']
     manufacturerVaccine = data['manufacturerVaccine']
@@ -119,7 +116,7 @@ def get_schema_by_id(id):
 
 
 # Shows the vaccinations of a member of a health fund according to an ID card
-@app.route('/coronaDetails/<int:id>')
+@app.route('/coronaDetails/<int:id>', methods=['GET'])
 def get_record(id):
     schema = corona_stock.execute_query('SELECT * FROM coronaDetails WHERE id = ?', (id,))
     if not schema:
