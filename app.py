@@ -3,7 +3,7 @@ import tempfile
 from flask import Flask, jsonify, request, send_file
 import sqlite3
 from dateutil.relativedelta import relativedelta
-import utils
+import corona_stock
 import matplotlib.pyplot as plt
 
 
@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 
 
-utils.creat_db()
+corona_stock.creat_db()
 
 
 
@@ -48,53 +48,41 @@ def add_personalDetails():
         return jsonify({'invalid sintax ': ' Must contain only numbers '})
     # if not is_valid_phone_number(mobilePhone):
     #     return jsonify({'invalid sintax ': ' The phone number '})
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT id FROM personalDetails WHERE id = ?', (id,))
-    ides = c.fetchall()
-    if ides :
+    ides = corona_stock.execute_query('SELECT id FROM personalDetails WHERE id = ?', (id,))
+    if ides:
         return jsonify({"error": " This key exists in the table "})
-    c.execute(
+    corona_stock.execute_query(
         'INSERT INTO personalDetails (firstLastName, id,city,street,number,dateOfBirth,telephone,mobilePhone, dateRecePositiveResult , recoveryDate  ) VALUES (?, ?,?,?,?,?,?,?,?,?)',
         (name, id, city, street, number, dateOfBirth, telephone, mobilePhone, dateRecePositiveResult, recoveryDate))
-    conn.commit()
-    conn.close()
     return jsonify({"seccedd": "User added successfully"})
 
 
 @app.route('/coronaDetails', methods=['POST'])
 def add_coronaDetails():
     # Add a new user to the database
-    if request.method == 'POST':
-        data = request.json
-        # print("data", data)
-        id = data['id']
-        dateReceVaccin = data['dateReceVaccin']
-        manufacturerVaccine = data['manufacturerVaccine']
-        if id == 'None' or dateReceVaccin == 'None' or manufacturerVaccine == 'None':
-            return jsonify({"error": " The values are invalid "})
-        conn = sqlite3.connect('coronaStock.db')
-        c = conn.cursor()
-        # Checks whether such a key already exists in the table
-        c.execute('SELECT * FROM coronaDetails WHERE id = ? and dateReceVaccin = ?', (id , dateReceVaccin) )
-        num = c.fetchall()
-        if num:
-            return jsonify({"error": " This key exists in the table "})
-        # Checking if there is such a member in the health fund
-        c.execute('SELECT id FROM personalDetails WHERE id = ?', (id,))
-        ides = c.fetchall()
-        if not ides:
-            return jsonify({'error ': ' You are not a member of a health fund '})
-        c.execute('SELECT id FROM coronaDetails WHERE id = ?', (id,))
-        ides = c.fetchall()
-        if len(ides) == 4:
-            return jsonify({'error ': ' There are already 4 vaccines in the system '})
+    data = request.json
+    # print("data", data)
+    id = data['id']
+    dateReceVaccin = data['dateReceVaccin']
+    manufacturerVaccine = data['manufacturerVaccine']
+    if id == 'None' or dateReceVaccin == 'None' or manufacturerVaccine == 'None':
+        return jsonify({"error": " The values are invalid "})
+    # Checks whether such a key already exists in the table
+    num = corona_stock.execute_query('SELECT * FROM coronaDetails WHERE id = ? and dateReceVaccin = ?', (id, dateReceVaccin))
+    if num:
+        return jsonify({"error": " This key exists in the table "})
+    # Checking if there is such a member in the health fund
+    ides = corona_stock.execute_query('SELECT id FROM personalDetails WHERE id = ?', (id,))
+    if not ides:
+        return jsonify({'error ': ' You are not a member of a health fund '})
+    ides = corona_stock.execute_query('SELECT id FROM coronaDetails WHERE id = ?', (id,))
+    if len(ides) == 4:
+        return jsonify({'error ': ' There are already 4 vaccines in the system '})
 
-        c.execute('INSERT INTO coronaDetails (id, dateReceVaccin, manufacturerVaccine ) VALUES (?, ?,?)',
-                  (id, dateReceVaccin, manufacturerVaccine))
-        conn.commit()
-        conn.close()
-        return jsonify({"seccedd": "User added successfully"})
+    corona_stock.execute_query('INSERT INTO coronaDetails (id, dateReceVaccin, manufacturerVaccine ) VALUES (?, ?,?)',
+              (id, dateReceVaccin, manufacturerVaccine))
+    return jsonify({"seccedd": "User added successfully"})
+
 
 
 @app.route('/images', methods=['POST'])
@@ -102,132 +90,103 @@ def add_image():
     request_id = request.form['id']
     image_file = request.files.get('imageFile')
     image_bytes = image_file.read()  # convert to bytes
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT id FROM images WHERE id = ?', (request_id,))
-    ides = c.fetchall()
-    if ides:
+    schema = corona_stock.execute_query('SELECT id FROM images WHERE id = ?', (request_id,))
+    if schema:
         return jsonify({"error": " This key exists in the table "})
-    c.execute('SELECT id FROM personalDetails WHERE id = ?', (request_id,))
-    ides = c.fetchall()
-    if not ides:
+    schema = corona_stock.execute_query('SELECT id FROM personalDetails WHERE id = ?', (request_id,))
+    if not schema:
         return jsonify({'error ': ' You are not a member of a health fund '})
-    c.execute('INSERT INTO images (id, image) VALUES (?,?)', (request_id, sqlite3.Binary(image_bytes),))
-    conn.commit()
-    conn.close()
+    corona_stock.execute_query('INSERT INTO images (id, image) VALUES (?,?)', (request_id, sqlite3.Binary(image_bytes),))
     return "OK", 200
 
 
 # Displays the POS members table
 @app.route('/personalDetails', methods=['GET'])
 def get_personalDetails():
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM personalDetails')
-    users = c.fetchall()
-    return jsonify(users)
+    schema = corona_stock.execute_query('SELECT * FROM personalDetails')
+    return jsonify(schema)
+
 
 
 # Displays the table of POS members by ID card
 @app.route('/personalDetails/<int:id>', methods=['GET'])
 def get_schema_by_id(id):
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM personalDetails WHERE id = ?', (id,))
-    schema = c.fetchone()
+    schema = corona_stock.execute_query('SELECT * FROM personalDetails WHERE id = ?', (id,))
     if not schema:
         return jsonify({"error": " You are not a member of a health fund "})
-    conn.close()
     return jsonify(schema)
+
 
 
 # Shows the vaccinations of a member of a health fund according to an ID card
 @app.route('/coronaDetails/<int:id>')
 def get_record(id):
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM coronaDetails WHERE id = ?', (id,))
-    schema = c.fetchall()
+    schema = corona_stock.execute_query('SELECT * FROM coronaDetails WHERE id = ?', (id,))
     if not schema:
         return jsonify({"error": " You are not a member of a health fund "})
-    conn.close()
     return jsonify(schema)
+
 
 
 
 @app.route('/images/<int:image_id>', methods=['GET'])
 def get_image(image_id):
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT image FROM images WHERE id = ?', (image_id,))
-    image = c.fetchone()
-    conn.close()
-
+    image = corona_stock.get_image_from_db(image_id)
     if image is None:
         return "Image not found", 404
 
     # Create a temporary file to store the image
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(image[0])
+        tmp_file.write(image)
         tmp_file.flush()
         # Return the file as a response with the appropriate content type header
-        return send_file(tmp_file.name, mimetype='image/jpeg'  )
+        return send_file(tmp_file.name, mimetype='image/jpeg' )
+
 
 
 # The number of vaccinations a particular person has received
-@app.route('/numVaccinations/<int:id>')
+@app.route('/numVaccinations/<int:id>', methods=['GET'])
 def get_numVaccinations(id):
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT id FROM coronaDetails WHERE id = ?', (id,))
-    schema = c.fetchall()
-    if not schema:
+    num_vaccinations = corona_stock.get_num_vaccinations(id)
+    if num_vaccinations is None:
         return jsonify({"error": " This key doesnt exists in the table "})
-    c.execute('SELECT count(id) FROM coronaDetails WHERE id = ?', (id,))
-    schema = c.fetchall()
-    conn.close()
-    return jsonify(schema[0])
+    return jsonify(num_vaccinations)
+
 
 
 # Brings the address list of members of the health insurance fund
-@app.route('/adrresses')
-def get_addres():
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT city,street FROM personalDetails ')
-    names = c.fetchall()
-    conn.close()
-    return jsonify(names)
+@app.route('/addresses', methods=['GET'])
+def get_addresses():
+    query = 'SELECT city, street FROM personalDetails'
+    result = corona_stock.execute_query(query)
+    return jsonify(result)
+
 
 
 
 # The number of members who are not vaccinated
-@app.route('/numNotVaccinated')
+@app.route('/numNotVaccinated', methods=['GET'])
 def get_numNotVaccinated():
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
-    c.execute('SELECT count(id) FROM personalDetails WHERE id not in ('
-              'SELECT DISTINCT id FROM coronaDetails )')
-    schema = c.fetchall()
-    conn.close()
-    return jsonify(schema[0])
+    query = ('SELECT count(id) FROM personalDetails WHERE id not in '
+             '(SELECT DISTINCT id FROM coronaDetails)')
+    result = corona_stock.execute_query(query)
+    return jsonify(result[0])
 
 
 
 @app.route('/ActivePatientsInLastMonth', methods=['GET'])
 def get_ActivePatientsInLastMonth():
-    conn = sqlite3.connect('coronaStock.db')
-    c = conn.cursor()
     date_now = datetime.date.today()
     new_date = datetime.date(date_now.year, date_now.month - 1, date_now.day)
     first_day_of_month = new_date.replace(day=1)
     last_day_of_month = first_day_of_month + relativedelta(months=1, days=-1)
-    c.execute('SELECT dateRecePositiveResult, recoveryDate FROM personalDetails WHERE '
-              'dateRecePositiveResult >= ? AND dateRecePositiveResult <= ? '
-              'OR recoveryDate >= ? '
-              'OR recoveryDate = ? AND dateRecePositiveResult != ?',
-              (first_day_of_month, last_day_of_month, first_day_of_month, None, None))
-    active_patients = c.fetchall()
+    query = '''SELECT dateRecePositiveResult, recoveryDate 
+                   FROM personalDetails 
+                   WHERE dateRecePositiveResult >= ? AND dateRecePositiveResult <= ? 
+                   OR recoveryDate >= ? 
+                   OR recoveryDate = ? AND dateRecePositiveResult != ?'''
+    args = (first_day_of_month, last_day_of_month, first_day_of_month, None, None)
+    active_patients = corona_stock.execute_query(query, args)
     Graph_active_patients_in_last_month = {}
     number_active_patients = 0
     day_in_month = first_day_of_month
@@ -258,7 +217,6 @@ def get_ActivePatientsInLastMonth():
     fig.savefig('plot.png')
     # Return the file as a response
     return send_file('plot.png', mimetype='image/png')
-
 
 
 
